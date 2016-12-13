@@ -58,40 +58,40 @@ function IpCalc() {
     } : false
   }
   this.v4ListAddresses = (lowerIP, higherIP) => {
-  	if (!this.v4Verify(lowerIP) || !this.v4Verify(higherIP)) return false
+    if (!this.v4Verify(lowerIP) || !this.v4Verify(higherIP)) return false
     let low = this.v4Ip2Long(lowerIP)
     const high = this.v4Ip2Long(higherIP)
     let outArray = []
     while (low <= high) {
-    	outArray.push(this.v4Long2Ip(low))
+      outArray.push(this.v4Long2Ip(low))
       low++
     }
     return outArray
   }
   this.v4Verify = (ip) => {
-  	return /^((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])$/.test(ip)
+    return /^((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])$/.test(ip)
   }
   this.v4IpFromCIDR = (ip) => {
-  	const part1 = ip.split("/")[0]
+    const part1 = ip.split("/")[0]
     if (this.v4Verify(part1)) return part1
     else return false
   }
   this.v4Clean = (ip) => {
-  	return this.v4Long2Ip(this.v4Ip2Long(ip))
+    return this.v4Long2Ip(this.v4Ip2Long(ip))
   }
   this.v4ArpaZone = (ip) => {
-  	if (!this.v4Verify(ip)) return false
-  	const ipSplit = ip.split(".")
+    if (!this.v4Verify(ip)) return false
+    const ipSplit = ip.split(".")
     if (ipSplit.length != 4) return false
     return ipSplit[2] + '.' + ipSplit[1] + '.' + ipSplit[0] + '.in-addr.arpa'
   }
   this.v4Tov6 = (ip) => {
-  	if (!this.v4Verify(ip)) return false
-  	return '::ffff:' + ip
+    if (!this.v4Verify(ip)) return false
+    return '::ffff:' + ip
   }
   this.v4Distance = (ip1, ip2) => {
-  	if (!this.v4Verify(ip1) || !this.v4Verify(ip2)) return false
-  	const intVal1 = this.v4Ip2Long(ip1)
+    if (!this.v4Verify(ip1) || !this.v4Verify(ip2)) return false
+    const intVal1 = this.v4Ip2Long(ip1)
     const intVal2 = this.v4Ip2Long(ip2)
     if (intVal1 > intVal2) return intVal1 - intVal2
     else return intVal2 - intVal1
@@ -101,17 +101,17 @@ function IpCalc() {
     return 1 << (32 - intMask)
   }
   this.v4GetBroadcast = (ip, intMask) => {
-  	if (!this.v4Verify(ip)) return false
+    if (!this.v4Verify(ip)) return false
     if (intMask < 1 || intMask > 32) return false
     return this.v4Long2Ip(this.v4Ip2Long(ip) | ~(0xffffffff << (32 - intMask)) & 0xffffffff)
   }
   this.v4GetNetwork = (ip, intMask) => {
     if (!this.v4Verify(ip)) return false
-		if (intMask < 1 || intMask > 32) return false
+    if (intMask < 1 || intMask > 32) return false
     return this.v4Long2Ip(this.v4Ip2Long(ip) & (0xffffffff << (32 - intMask)))
   }
   this.v4GetDecMask = (stringMask) => {
-  	const binVal = parseInt(this.v4Ip2Long(stringMask), 10).toString(2)
+    const binVal = parseInt(this.v4Ip2Long(stringMask), 10).toString(2)
     return binVal.match(/([10]*?)0*$/)[1].length
   }
   this.v4GetDotMask = (intMask) => {
@@ -119,7 +119,7 @@ function IpCalc() {
     return this.v4Long2Ip(0xffffffff << (32 - intMask))
   }
   this.v4AddValue = (ip, add) => {
-  	if (!this.v4Verify(ip)) return false
+    if (!this.v4Verify(ip)) return false
     return this.v4Long2Ip(this.v4Ip2Long(ip) + add)
   }
   this.v4Ip2Long = (ip) => {
@@ -131,7 +131,7 @@ function IpCalc() {
     return [longIp >>> 24, longIp >>> 16 & 0xFF, longIp >>> 8 & 0xFF, longIp & 0xFF].join('.')
   }
   this.v4InSubnet = (cidrip, ip) => {
-  	const ipSplit = cidrip.split('/')
+    const ipSplit = cidrip.split('/')
     return this.v4Ip2Long(this.v4GetNetwork(ipSplit[0], ipSplit[1])) <= this.v4Ip2Long(ip) && this.v4Ip2Long(this.v4(cidrip).hostmax) >= this.v4Ip2Long(ip)
   }
 }
