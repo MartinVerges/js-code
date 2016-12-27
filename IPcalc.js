@@ -38,8 +38,123 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // calc.v4Verify('192.168.0.0') = true || calc.v4Verify('392.168.0.0') = false
 // calc.v4InSubnet('192.168.0.0/24', '192.168.0.5') == true || calc.v4InSubnet('192.168.0.0/24', '192.168.1.5') == false
 // calc.v4ListAddresses('192.168.0.0', '192.168.0.5') == 192.168.0.0,192.168.0.1,192.168.0.2,...5
+//
+// and with IPv6
+//
+// calc.v6('2001:0db8:85a3:08d3:1319:8a2e:0370:7347/64') = { "address": "2001:db8:85a3:8d3:1319:8a2e:370:7347", "network": "2001:0db8:85a3:08d3::", "gateway": "2001:0db8:85a3:08d3::1", "fullIP": 2001:0db8:85a3:08d3:1319:8a2e:0370:7347", "arpa": "3.d.8.0.3.a.5.8.8.b.d.0.1.0.0.2.ip6.arpa", "cidrmask": 64 }
+// calc.v6ArpaZone('2001:0db8:85a3:08d3::', 64) = 3.d.8.0.3.a.5.8.8.b.d.0.1.0.0.2.ip6.arpa
+// calc.v6Full('ff:a:b:c::12') = 00ff:000a:000b:000c:0000:0000:0000:0012
+// calc.v6Short('00ff:000a:000b:000c:0000:0000:0000:0012') = ff:a:b:c::12
+// calc.v6Verify('ff:a:b:c::12') = true || calc.v6Verify('hello, world') = false
+// calc.v6ToBlocks('ff:a:b:c::12') = [ "00ff", "000a", "000b", "000c", "0000", "0000", "0000", "0012" ]
+// calc.v6GetNetwork('2001:0db8:85a3:08d3:1319:8a2e:0370:7347', 64) = "2001:0db8:85a3:08d3::"
+// calc.v6Gateway('2001:0db8:85a3:08d3:1319:8a2e:0370:7347', 64) = "2001:0db8:85a3:08d3::1"
+//
 
 function IpCalc() {
+  this.v6 = (ipOrNet, intMask = false) => {
+    let ipSplit = []
+    if (intMask == false) ipSplit = ipOrNet.split('/')
+    else ipSplit = [ipOrNet, intMask]
+    ipSplit[1] = parseInt(ipSplit[1])
+
+    return this.v6Verify(ipSplit[0]) ? {
+      'address': this.v6Short(ipSplit[0]),
+      'network': this.v6GetNetwork(ipSplit[0], ipSplit[1]),
+      'gateway': this.v6Gateway(ipSplit[0], ipSplit[1]),
+      'fullIP': this.v6Full(ipSplit[0]),
+      'arpa': this.v6ArpaZone(ipSplit[0], ipSplit[1]),
+      'cidrmask': ipSplit[1],
+    } : false
+  }
+
+  this.v6Gateway = (ip, intMask) => {
+    return this.v6GetNetwork(ip, intMask).replace(/::$/, '::1')
+  }
+  this.v6GetNetwork = (ip, intMask) => {
+    if (!this.v6Verify(ip)) return false
+    if (intMask < 1 || intMask > 128) return false
+
+    let v6Blocks = this.v6ToBlocks(ip)
+    for (index = 7; index >= 0; index--) { // each 16 bits starting from end
+      if (intMask >= 16) {
+        v6Blocks[index] = '0'
+        intMask -= 16
+      } else if (intMask > 0) {
+        v6Blocks[index] = (this.hexdec(v6Blocks[index]) & (0xffff << (16 - intMask))).toString(16)
+        break
+      } else break
+    }
+    return v6Blocks.join(':').replace(/:0(:0)+:/, '::').replace(/::0$/, '::')
+  }
+  this.v6ArpaZone = (ip, intMask) => {
+    if (!this.v6Verify(ip)) return false
+    if (intMask == 16 || intMask == 32 || intMask == 48 || intMask == 64 || intMask == 80 || intMask == 96 || intMask == 112) {
+      const fullstring = this.v6ToBlocks(this.v6GetNetwork(ip, intMask)).join('').replace(/0+$/, '')
+      return this.strrev(fullstring).split('').join('.') + '.ip6.arpa'
+    } else {
+      // Split into multiple full blocks (/29 == 8x /32)
+      // FIXME: todo
+      //let zoneList = []
+      return 'Sorry, not yet implemented'
+    }
+  }
+  this.v6Full = (ip) => {
+    if (!this.v6Verify(ip)) return false
+    return this.v6ToBlocks(ip).join(':')
+  }
+  this.v6Short = (ip) => {
+    if (!this.v6Verify(ip)) return false
+    let shortIP = this.v6ToBlocks(ip, true).join(':')
+    return shortIP.replace(/:0(:0)+:/, '::')
+  }
+  this.v6ToBlocks = (ip, trimmed = false) => {
+    if (!this.v6Verify(ip)) return false
+    let v6Blocks = new Array(8)
+    ip = ip.toLowerCase()
+    if (ip.includes('::')) {
+      const ipSplit = ip.split('::')
+      if (ipSplit.length == 2) {
+        const left2right = ipSplit[0].split(':')
+        const right2left = ipSplit[1].split(':').reverse()
+        for (index = 0; index < left2right.length; ++index) v6Blocks[index] = left2right[index]
+        for (index = 0; index < right2left.length; ++index) v6Blocks[8 - index] = right2left[index]
+      } else return false
+    } else {
+      const left2right = ip.split(':')
+      for (index = 0; index < left2right.length; ++index) v6Blocks[index] = left2right[index]
+    }
+    if (trimmed == true) {
+      for (index = 0; index < 8; ++index) {
+        v6Blocks[index] = this.trimLeft(v6Blocks[index], '0') || '0'
+      }
+    } else {
+      for (index = 0; index < 8; ++index) v6Blocks[index] = this.padLeft(v6Blocks[index], 4)
+    }
+    return v6Blocks
+  }
+  this.v6Verify = (ip) => {
+      return /^(([0-9a-f]{1,4}:){7,7}[0-9a-f]{1,4}|([0-9a-f]{1,4}:){1,7}:|([0-9a-f]{1,4}:){1,6}:[0-9a-f]{1,4}|([0-9a-f]{1,4}:){1,5}(:[0-9a-f]{1,4}){1,2}|([0-9a-f]{1,4}:){1,4}(:[0-9a-f]{1,4}){1,3}|([0-9a-f]{1,4}:){1,3}(:[0-9a-f]{1,4}){1,4}|([0-9a-f]{1,4}:){1,2}(:[0-9a-f]{1,4}){1,5}|[0-9a-f]{1,4}:((:[0-9a-f]{1,4}){1,6})|:((:[0-9a-f]{1,4}){1,7}|:)|fe80:(:[0-9a-f]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-f]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/i.test(ip)
+    }
+  // Helpers for IPv6
+  this.strrev = (s) => {
+    return s.split('').reverse().join('');
+  }
+  this.trimLeft = (fullString, charList = '\s') => {
+    if (typeof fullString == 'undefined') fullString = ''
+    if (typeof fullString != 'string') fullString = String(fullString)
+    return String(fullString).replace(new RegExp('^[' + charList + ']+', 'g'), '')
+  }
+  this.padLeft = (n, width, z = '0') => {
+    if (typeof n == 'undefined') n = ''
+    if (typeof n != 'string') n = String(n)
+    return n.length >= width ? n : new Array(width - n.length + 1).join(z) + n;
+  }
+  this.hexdec = (hexString) => {
+    hexString = String(hexString).replace(/[^a-f0-9]/gi, '')
+    return parseInt(hexString, 16)
+  }
+
   this.v4 = (ipOrNet, intMask = false) => {
     let ipSplit = []
     if (intMask == false) ipSplit = ipOrNet.split('/')
