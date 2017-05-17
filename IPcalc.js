@@ -58,7 +58,7 @@ function IpCalc () {
     else ipSplit = [ipOrNet, intMask]
     ipSplit[1] = parseInt(ipSplit[1])
 
-    return this.v6Verify(ipSplit[0]) ? {
+    return this.v6Verify(ipSplit[0]) && this.v6NetmaskVerify(ipSplit[1]) ? {
       'address': this.v6Short(ipSplit[0]),
       'network': this.v6GetNetwork(ipSplit[0], ipSplit[1]),
       'gateway': this.v6Gateway(ipSplit[0], ipSplit[1]),
@@ -68,12 +68,20 @@ function IpCalc () {
     } : false
   }
 
+  this.v6InSubnet = (cidrip, ip) => {
+    const ipSplit = cidrip.split('/')
+    if (!this.v6Verify(ipSplit[0])) return false
+    if (!this.v6Verify(ip)) return false
+    if (ipSplit[1] < 0 || ipSplit[1] > 128) return false
+    return this.v6GetNetwork(ipSplit[0], ipSplit[1]) === this.v6GetNetwork(ip, ipSplit[1])
+  }
   this.v6Gateway = (ip, intMask) => {
     return this.v6GetNetwork(ip, intMask).replace(/::$/, '::1')
   }
   this.v6GetNetwork = (ip, intMask) => {
     if (!this.v6Verify(ip)) return false
-    if (intMask < 1 || intMask > 128) return false
+    if (intMask < 0 || intMask > 128) return false
+    intMask = 128 - intMask
 
     let v6Blocks = this.v6ToBlocks(ip)
     for (let index = 7; index >= 0; index--) { // each 16 bits starting from end
@@ -85,7 +93,7 @@ function IpCalc () {
         break
       } else break
     }
-    return v6Blocks.join(':').replace(/:0(:0)+:/, '::').replace(/::0$/, '::')
+    return v6Blocks.join(':').replace(/:0{1,4}(:0{1,4})+$/, '::').replace(/::0$/, '::')
   }
   this.v6ArpaZone = (ip, intMask) => {
     if (!this.v6Verify(ip)) return false
@@ -118,7 +126,7 @@ function IpCalc () {
         const left2right = ipSplit[0].split(':')
         const right2left = ipSplit[1].split(':').reverse()
         for (let index = 0; index < left2right.length; ++index) v6Blocks[index] = left2right[index]
-        for (let index = 0; index < right2left.length; ++index) v6Blocks[8 - index] = right2left[index]
+        for (let index = 0; index < right2left.length; ++index) v6Blocks[7 - index] = right2left[index]
       } else return false
     } else {
       const left2right = ip.split(':')
@@ -132,6 +140,9 @@ function IpCalc () {
       for (let index = 0; index < 8; ++index) v6Blocks[index] = this.padLeft(v6Blocks[index], 4)
     }
     return v6Blocks
+  }
+  this.v6NetmaskVerify = (netmask) => {
+    return /^([0-9]|[1-9][0-9]|1[0-1][0-9]|12[0-8])$/.test(netmask)
   }
   this.v6Verify = (ip) => {
     return /^(([0-9a-f]{1,4}:){7,7}[0-9a-f]{1,4}|([0-9a-f]{1,4}:){1,7}:|([0-9a-f]{1,4}:){1,6}:[0-9a-f]{1,4}|([0-9a-f]{1,4}:){1,5}(:[0-9a-f]{1,4}){1,2}|([0-9a-f]{1,4}:){1,4}(:[0-9a-f]{1,4}){1,3}|([0-9a-f]{1,4}:){1,3}(:[0-9a-f]{1,4}){1,4}|([0-9a-f]{1,4}:){1,2}(:[0-9a-f]{1,4}){1,5}|[0-9a-f]{1,4}:((:[0-9a-f]{1,4}){1,6})|:((:[0-9a-f]{1,4}){1,7}|:)|fe80:(:[0-9a-f]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-f]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/i.test(ip)
@@ -160,7 +171,7 @@ function IpCalc () {
     if (intMask === false) ipSplit = ipOrNet.split('/')
     else ipSplit = [ipOrNet, intMask]
 
-    return this.v4Verify(ipSplit[0]) ? {
+    return this.v4Verify(ipSplit[0]) && this.v4NetmaskVerify(ipSplit[1]) ? {
       'address': ipSplit[0],
       'gateway': this.v4AddValue(this.v4GetNetwork(ipSplit[0], ipSplit[1]), 1),
       'netmask': this.v4GetDotMask(ipSplit[1]),
@@ -182,6 +193,9 @@ function IpCalc () {
       low++
     }
     return outArray
+  }
+  this.v4NetmaskVerify = (netmask) => {
+    return /^([0-9]|[1-2][0-9]|3[0-2])$/.test(netmask)
   }
   this.v4Verify = (ip) => {
     return /^((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])$/.test(ip)
@@ -212,17 +226,17 @@ function IpCalc () {
     else return intVal2 - intVal1
   }
   this.v4Count = (intMask) => {
-    if (intMask < 1 || intMask > 32) return false
+    if (intMask < 0 || intMask > 32) return false
     return 1 << (32 - intMask)
   }
   this.v4GetBroadcast = (ip, intMask) => {
     if (!this.v4Verify(ip)) return false
-    if (intMask < 1 || intMask > 32) return false
+    if (intMask < 0 || intMask > 32) return false
     return this.v4Long2Ip(this.v4Ip2Long(ip) | ~(0xffffffff << (32 - intMask)) & 0xffffffff)
   }
   this.v4GetNetwork = (ip, intMask) => {
     if (!this.v4Verify(ip)) return false
-    if (intMask < 1 || intMask > 32) return false
+    if (intMask < 0 || intMask > 32) return false
     return this.v4Long2Ip(this.v4Ip2Long(ip) & (0xffffffff << (32 - intMask)))
   }
   this.v4GetDecMask = (stringMask) => {
@@ -230,7 +244,7 @@ function IpCalc () {
     return binVal.match(/([10]*?)0*$/)[1].length
   }
   this.v4GetDotMask = (intMask) => {
-    if (intMask < 1 || intMask > 32) return false
+    if (intMask < 0 || intMask > 32) return false
     return this.v4Long2Ip(0xffffffff << (32 - intMask))
   }
   this.v4AddValue = (ip, add) => {
